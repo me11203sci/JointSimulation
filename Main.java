@@ -13,6 +13,8 @@ import javafx.scene.text.Text;
 import javafx.scene.transform.Rotate;
 import javafx.stage.Stage;
 import com.fazecast.jSerialComm.SerialPort;
+
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 import static javafx.scene.paint.Color.BLACK;
 import static javafx.scene.paint.Color.WHITE;
@@ -24,13 +26,24 @@ public class Main extends Application
 	// Global instance declarations.
 	private static final int WINDOW_WIDTH = 512;
 	private static final int WINDOW_HEIGHT = 266;
+	final SerialPort sp = SerialPort.getCommPort("COM17");
+	final Box base = new Box(32,35,28);
+	final Box pivotingPiece = new Box(32,35,28);
+	final Cylinder pivotPoint = new Cylinder(25,35);
+	final Rectangle textBox = new Rectangle();
+	final Rectangle jointBox = new Rectangle();
+	final Rectangle backgroundText = new Rectangle();
+	final Text titleText = new Text(40,25,"INFORMATON");
+	final Text rawSensorText = new Text(35,50,"RAW SENSOR READING: ");
+	final Text angleText = new Text(35,70,"CURRENT ANGLE: ");
+
+
 	String rawAngleReading;
 
 	// JavaFX "start" method.
 	@Override
 	public void start(Stage primaryStage) throws Exception
 	{
-		SerialPort sp = SerialPort.getCommPort("COM17");
 		sp.setComPortParameters(9600,8,1,0);
 		sp.setComPortTimeouts(SerialPort.TIMEOUT_SCANNER, 0, 0);
 		if(sp.openPort())
@@ -42,24 +55,13 @@ public class Main extends Application
 			System.out.println("Failure.");
 			return;
 		}
-		Scanner scanner = new Scanner(sp.getInputStream());
 
 		// Declare 3D objects
-		Box base = new Box(32,35,28);
-		Box pivotingPiece = new Box(32,35,28);
-		Cylinder pivotPoint = new Cylinder(25,35);
 		base.translateYProperty().setValue(35);
 		pivotingPiece.translateYProperty().setValue(-35);
 		pivotPoint.getTransforms().add(new Rotate(90, Rotate.X_AXIS));
 
 		// Declare 2D objects.
-		Rectangle textBox = new Rectangle();
-		Rectangle jointBox = new Rectangle();
-		Rectangle backgroundText = new Rectangle();
-		Text titleText = new Text(40,25,"INFORMATON");
-		Text rawSensorText = new Text(35,50,"RAW SENSOR READING: ");
-		Text angleText = new Text(35,70,"CURRENT ANGLE: ");
-
 		textBox.setStroke(WHITE);
 		textBox.setStrokeWidth(2);
 		textBox.setX(20);
@@ -112,20 +114,30 @@ public class Main extends Application
 		objects3D.translateXProperty().setValue(380);
 		objects3D.translateYProperty().setValue(WINDOW_HEIGHT/2);
 
-
 		// Window setup.
 		primaryStage.setTitle("Joint Simulator");
 		primaryStage.setResizable(false);
 		primaryStage.setScene(scene);
 		primaryStage.show();
 
+		new Thread(()->
+			{
+				while(true)
+				{
+					Scanner scanner = new Scanner(sp.getInputStream());
+					rawAngleReading = scanner.nextLine();
+					System.out.println(rawAngleReading);
+					scanner.close();
+				}
+			}
+		).start();
+
 		new AnimationTimer()
 		{
 			@Override
 			public void handle(long now)
 			{
-				rawAngleReading = scanner.nextLine();
-				double angle = (Double.parseDouble(scanner.nextLine()) > 200)?Math.round((Double.parseDouble(scanner.nextLine())-200)*0.225):0;
+				double angle = (Double.parseDouble(rawAngleReading) > 200)?Math.round((Double.parseDouble(rawAngleReading)-200)*0.225):0;
 				angleText.setText("CURRENT ANGLE: " + angle);
 				rawSensorText.setText("RAW SENSOR READING: " + rawAngleReading);
 				pivotingPiece.setLayoutX(35*Math.cos(Math.toRadians(angle-90)));
